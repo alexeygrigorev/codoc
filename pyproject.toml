@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "codoc"
+description = "Generate markdown documents from notebook-backed templates"
+readme = "README.md"
+requires-python = ">=3.13"
+dynamic = ["version"]
+authors = [
+    { name = "Alexey Grigorev", email = "alexey.s.grigoriev@gmail.com" },
+]
+dependencies = [
+    "jupyter>=1.1",
+    "nbformat>=5.10",
+    "pillow>=12.0.0",
+    "python-frontmatter>=1.1",
+    "watchdog>=6.0",
+]
+
+[project.scripts]
+codoc = "codoc:main"
+codoc-watch = "codoc.watch:main"
+nbedit = "codoc.nb_edit.__main__:main"
+
+[dependency-groups]
+dev = [
+    "hatch>=1.14.0",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.11.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["codoc"]
+
+[tool.hatch.version]
+path = "codoc/__version__.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.uv]
+exclude-newer = "7 days"
+package = true
