@@ -1,0 +1,225 @@
+/* ViewZone widget styling */
+
+.codegen-viewzone {
+  border-left: 3px solid #4a9eff;
+  background: #1a2733;
+  margin-left: 0;
+  padding: 0 8px;
+  overflow: hidden;
+  /* font-family, font-size, line-height set via JS to match Monaco editor */
+}
+
+.codegen-viewzone,
+.codegen-viewzone * {
+  font-feature-settings: 'liga' 0, 'calt' 0 !important;
+  -webkit-font-feature-settings: 'liga' 0, 'calt' 0 !important;
+  font-variant-ligatures: none !important;
+}
+
+.codegen-viewzone.output {
+  border-left-color: #6a9955;
+  background: #1a2a1a;
+}
+
+.codegen-viewzone.not-found {
+  border-left-color: #f44747;
+  background: #2a1a1a;
+}
+
+.codegen-viewzone-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+.codegen-viewzone-badge {
+  display: inline-block;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: #4a9eff33;
+  color: #4a9eff;
+}
+
+.codegen-viewzone.output .codegen-viewzone-badge {
+  background: #6a995533;
+  color: #6a9955;
+}
+
+.codegen-viewzone.not-found .codegen-viewzone-badge {
+  background: #f4474733;
+  color: #f44747;
+}
+
+.codegen-viewzone-type {
+  display: inline-block;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  background: #5a5a5a33;
+  color: #999;
+}
+
+.codegen-viewzone-label {
+  color: #888;
+  font-size: 11px;
+}
+
+.codegen-viewzone-content {
+  margin: 0;
+  padding: 0;
+  color: #d4d4d4;
+  white-space: pre;
+  overflow: hidden;
+}
+
+/* Monaco colorize() wraps output in <span> elements with inline color styles.
+   The output is a single string with <br/> between lines. */
+.codegen-viewzone-content span {
+  font-family: inherit !important;
+  font-size: inherit !important;
+}
+
+.codegen-viewzone.not-found .codegen-viewzone-content {
+  color: #f44747;
+  font-style: italic;
+}
+
+/* Editable cell textarea */
+.codegen-viewzone-textarea {
+  display: block;
+  width: 100%;
+  min-height: 1.5em;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: #d4d4d4;
+  white-space: pre;
+  overflow-y: auto;
+  overflow-x: hidden;
+  line-height: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  tab-size: 4;
+  box-sizing: border-box;
+}
+
+.codegen-viewzone-textarea:focus {
+  background: rgba(74, 158, 255, 0.04);
+  outline: 1px solid rgba(74, 158, 255, 0.3);
+}
+
+/* VIEW badge for read-only parameterized directives */
+.codegen-viewzone-badge.view-badge {
+  background: #5a5a5a44;
+  color: #888;
+}
+
+/* Icon buttons (edit, copy) */
+.codegen-viewzone-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 16px;
+  border-radius: 3px;
+  background: transparent;
+  color: #888;
+  cursor: pointer;
+  user-select: none;
+  pointer-events: auto;
+  position: relative;
+  z-index: 10;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.codegen-viewzone-icon-btn:hover {
+  background: #ffffff22;
+  color: #d4d4d4;
+}
+
+.codegen-viewzone-icon-btn svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+/* Editable zone styling */
+.codegen-viewzone.editable {
+  border-left-color: #4a9eff;
+}
+
+.codegen-viewzone.editable:focus-within {
+  border-left-color: #73b8ff;
+  background: #1a2a3a;
+}
+
+/* Directive line decorations */
+.codegen-directive-found {
+  background: rgba(74, 158, 255, 0.06);
+}
+
+.codegen-directive-not-found {
+  background: rgba(244, 71, 71, 0.08);
+}
+
+/* Glyph margin indicators */
+.codegen-glyph-found {
+  background: #4a9eff;
+  border-radius: 50%;
+  width: 6px !important;
+  height: 6px !important;
+  margin-top: 7px;
+  margin-left: 7px;
+}
+
+.codegen-glyph-not-found {
+  background: #f44747;
+  border-radius: 50%;
+  width: 6px !important;
+  height: 6px !important;
+  margin-top: 7px;
+  margin-left: 7px;
+}
+
+/* Markdown heading decorations */
+.codegen-heading {
+  font-weight: bold;
+  color: #569cd6;
+}
+
+/* YAML frontmatter decorations */
+.codegen-yaml-delimiter {
+  color: #808080;
+  font-weight: bold;
+}
+
+.codegen-yaml-key {
+  color: #9cdcfe;
+}
+
+.codegen-yaml-colon {
+  color: #d4d4d4;
+}
+
+.codegen-yaml-value {
+  color: #ce9178;
+}
+
+.codegen-yaml-bool {
+  color: #569cd6;
+  font-weight: bold;
+}

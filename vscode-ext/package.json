@@ -1,0 +1,82 @@
+{
+  "name": "codoc-vscode",
+  "displayName": "Codoc Template Editor",
+  "description": "Inline code previews for codoc template directives in .template.md files",
+  "version": "0.2.0",
+  "publisher": "alexeygrigorev",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onCustomEditor:codoc.templateEditor"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "codoc.templateEditor",
+        "displayName": "Codoc Template Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.template.md"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "codoc.generate",
+        "title": "Codoc: Generate Markdown"
+      },
+      {
+        "command": "codoc.generateAll",
+        "title": "Codoc: Generate All Templates"
+      }
+    ],
+    "configuration": {
+      "title": "Codoc",
+      "properties": {
+        "codoc.generateOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically generate markdown when saving a template"
+        },
+        "codoc.pythonCommand": {
+          "type": "string",
+          "default": "uv run codoc",
+          "description": "Command to run codoc (executed in workspace root)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "webpack --mode production",
+    "compile:dev": "webpack --mode development",
+    "watch": "webpack --mode development --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vscode-test",
+    "package": "vsce package",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.3.8",
+    "@vscode/vsce": "^2.22.0",
+    "css-loader": "^6.9.0",
+    "monaco-editor": "^0.44.0",
+    "monaco-editor-webpack-plugin": "^7.1.0",
+    "style-loader": "^3.3.4",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "yaml": "^2.3.4"
+  }
+}

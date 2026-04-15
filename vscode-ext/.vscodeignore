@@ -1,0 +1,9 @@
+**/*.ts
+**/tsconfig*.json
+**/webpack.config.js
+**/vitest.config.ts
+src/test/**
+webview/**
+node_modules/**
+.vscode/**
+**/*.map

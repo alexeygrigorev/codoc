@@ -115,6 +115,92 @@ class TestGenerator:
         assert result is not None
         assert "```python" in result
 
+    def test_generate_nobook_template_from_out_file(self, tmp_path):
+        """It reads code and output from a nobook `.py` source with sibling `.out.py`."""
+        import shutil
+
+        fixtures_tmp = tmp_path / "fixtures"
+        shutil.copytree(FIXTURES_DIR, fixtures_tmp)
+
+        template_content = """---
+notebooks:
+  - id: nb
+    path: fixtures/nobooks/simple.py
+    execute: false
+---
+
+# Nobook
+
+@@code nb:setup
+
+@@code-output nb:show
+"""
+        template_path = tmp_path / "nobook.template.md"
+        template_path.write_text(template_content)
+
+        gen = Generator()
+        output_path = tmp_path / "nobook.md"
+        result = gen.generate(template_path, output_path)
+
+        assert "message = \"hello from nobook\"" in result
+        assert "hello from nobook" in result
+
+    def test_generate_nobook_template_by_execution(self, tmp_path):
+        """It can execute a nobook `.py` source to produce output."""
+        import shutil
+
+        fixtures_tmp = tmp_path / "fixtures"
+        shutil.copytree(FIXTURES_DIR, fixtures_tmp)
+        (fixtures_tmp / "nobooks" / "simple.out.py").unlink()
+
+        template_content = """---
+notebooks:
+  - id: nb
+    path: fixtures/nobooks/simple.py
+    execute: true
+---
+
+# Nobook
+
+@@code nb:show
+
+@@code-output nb:show
+"""
+        template_path = tmp_path / "nobook-exec.template.md"
+        template_path.write_text(template_content)
+
+        gen = Generator()
+        output_path = tmp_path / "nobook-exec.md"
+        result = gen.generate(template_path, output_path)
+
+        assert "print(message)" in result
+        assert "hello from nobook" in result
+
+    def test_nobook_figure_directive_is_rejected(self, tmp_path):
+        """It rejects figure directives for nobook sources."""
+        import shutil
+
+        fixtures_tmp = tmp_path / "fixtures"
+        shutil.copytree(FIXTURES_DIR, fixtures_tmp)
+
+        template_content = """---
+notebooks:
+  - id: nb
+    path: fixtures/nobooks/simple.py
+    execute: false
+---
+
+@@code-figure nb:show
+"""
+        template_path = tmp_path / "nobook-figure.template.md"
+        template_path.write_text(template_content)
+
+        gen = Generator()
+        output_path = tmp_path / "nobook-figure.md"
+
+        with pytest.raises(InvalidDirectiveError, match="nobook"):
+            gen.generate(template_path, output_path)
+
     def test_frontmatter_includes_template_path(self):
         """It includes the template path in the frontmatter note."""
         import shutil

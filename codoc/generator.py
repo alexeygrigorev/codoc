@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from codoc.executor import validate_notebook_for_cells
+from codoc.nobook import execute_nobook, load_nobook
 from codoc.parser import (
     CodeDirective,
     CodeFigureDirective,
@@ -43,12 +44,14 @@ class DirectiveVisitor:
         output_path: Path,
         loaded_scripts: dict | None = None,
         script_refs: dict | None = None,
+        notebook_kinds: dict[str, str] | None = None,
     ):
         self.loaded_notebooks = loaded_notebooks
         self.notebook_refs = notebook_refs
         self.output_path = output_path
         self.loaded_scripts = loaded_scripts or {}
         self.script_refs = script_refs or {}
+        self.notebook_kinds = notebook_kinds or {}
 
     def _apply_line_params(self, source: str, directive: CodeDirective) -> str:
         """Apply lines= and strip-spaces= parameters to source code."""
@@ -145,6 +148,12 @@ class DirectiveVisitor:
                 directive.raw_line,
                 "@@code-figure is not supported for scripts (scripts have no execution output)",
             )
+        if self.notebook_kinds.get(directive.notebook_id) == "nobook":
+            from codoc.errors import InvalidDirectiveError
+            raise InvalidDirectiveError(
+                directive.raw_line,
+                "@@code-figure is not supported for nobook sources",
+            )
 
         from codoc.nb_edit.editor import FastNotebookEditor
 
@@ -235,6 +244,7 @@ class Generator:
 
         # Load and validate notebooks
         loaded_notebooks: dict[str, tuple] = {}  # notebook_id -> (notebook, notebook_path)
+        notebook_kinds: dict[str, str] = {}
 
         for notebook_id, cell_ids in notebook_cells.items():
             if notebook_id not in parsed.notebook_refs:
@@ -246,20 +256,27 @@ class Generator:
 
             ref: NotebookRef = parsed.notebook_refs[notebook_id]
             notebook_path = resolve_notebook_path(template_path, ref.path)
+            notebook_kinds[notebook_id] = "nobook" if notebook_path.suffix == ".py" else "ipynb"
 
-            # Execute if notebook has execute=True
-            if ref.execute:
-                executed_notebook = validate_notebook_for_cells(
-                    notebook_path,
-                    cell_ids=cell_ids,
-                    timeout=self.timeout,
-                    kernel_name=self.kernel_name,
-                )
-                loaded_notebooks[notebook_id] = (executed_notebook, notebook_path)
+            if notebook_path.suffix == ".py":
+                if ref.execute:
+                    loaded_notebooks[notebook_id] = (execute_nobook(notebook_path, cell_ids), notebook_path)
+                else:
+                    loaded_notebooks[notebook_id] = (load_nobook(notebook_path), notebook_path)
             else:
-                from codoc.nb_edit.editor import load_notebook
-                notebook = load_notebook(notebook_path)
-                loaded_notebooks[notebook_id] = (notebook, notebook_path)
+                # Execute if notebook has execute=True
+                if ref.execute:
+                    executed_notebook = validate_notebook_for_cells(
+                        notebook_path,
+                        cell_ids=cell_ids,
+                        timeout=self.timeout,
+                        kernel_name=self.kernel_name,
+                    )
+                    loaded_notebooks[notebook_id] = (executed_notebook, notebook_path)
+                else:
+                    from codoc.nb_edit.editor import load_notebook
+                    notebook = load_notebook(notebook_path)
+                    loaded_notebooks[notebook_id] = (notebook, notebook_path)
 
         # Load scripts
         loaded_scripts: dict[str, tuple] = {}  # script_id -> (blocks_dict, language)
@@ -280,6 +297,7 @@ class Generator:
             output_path=output_path,
             loaded_scripts=loaded_scripts,
             script_refs=parsed.script_refs,
+            notebook_kinds=notebook_kinds,
         )
 
         # Generate output by replacing directives

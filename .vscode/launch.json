@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Codoc Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/vscode-ext",
+        "${workspaceFolder}"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/vscode-ext/dist/**/*.js"
+      ]
+    }
+  ]
+}
