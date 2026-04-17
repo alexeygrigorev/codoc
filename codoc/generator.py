@@ -2,6 +2,9 @@
 
 from pathlib import Path
 
+import frontmatter as _frontmatter
+import yaml
+
 from codoc.executor import validate_notebook_for_cells
 from codoc.nobook import execute_nobook, load_nobook
 from codoc.parser import (
@@ -13,6 +16,25 @@ from codoc.parser import (
     parse_template,
 )
 from codoc.utils import resolve_notebook_path
+
+# Keys in the template's frontmatter that codoc consumes internally and should
+# NOT be propagated to generated output.
+_TEMPLATE_ONLY_FRONTMATTER_KEYS = {"notebooks", "scripts", "body_start"}
+
+# Keys that codoc adds to generated output and that should therefore be
+# re-computed on each run (not compared when deciding whether to skip a write).
+_CODOC_ADDED_FRONTMATTER_KEYS = {"generated_at"}
+
+
+def _render_frontmatter(fm: dict) -> str:
+    """Serialize a frontmatter dict to the YAML block (including ``---`` fences)."""
+    body = yaml.safe_dump(
+        fm,
+        allow_unicode=True,
+        sort_keys=True,
+        width=1_000_000,  # keep long fields (note, descriptions) on a single line
+    )
+    return f"---\n{body}---\n\n"
 
 
 def _strip_frontmatter(content: str) -> str:
@@ -189,16 +211,23 @@ class DirectiveVisitor:
 class Generator:
     """Generate markdown files from templates."""
 
-    def __init__(self, timeout: int = 30, kernel_name: str = "python3"):
+    def __init__(
+        self,
+        timeout: int = 30,
+        kernel_name: str = "python3",
+        execute_override: bool | None = None,
+    ):
         """
         Initialize the generator.
 
         Args:
             timeout: Timeout for notebook execution in seconds
             kernel_name: Jupyter kernel name to use for execution
+            execute_override: Override frontmatter execute=true/false for this run
         """
         self.timeout = timeout
         self.kernel_name = kernel_name
+        self.execute_override = execute_override
 
     def generate(self, template_path: Path, output_path: Path | None = None) -> str:
         """
@@ -258,14 +287,16 @@ class Generator:
             notebook_path = resolve_notebook_path(template_path, ref.path)
             notebook_kinds[notebook_id] = "nobook" if notebook_path.suffix == ".py" else "ipynb"
 
+            effective_execute = ref.execute if self.execute_override is None else self.execute_override
+
             if notebook_path.suffix == ".py":
-                if ref.execute:
+                if effective_execute:
                     loaded_notebooks[notebook_id] = (execute_nobook(notebook_path, cell_ids), notebook_path)
                 else:
                     loaded_notebooks[notebook_id] = (load_nobook(notebook_path), notebook_path)
             else:
                 # Execute if notebook has execute=True
-                if ref.execute:
+                if effective_execute:
                     executed_notebook = validate_notebook_for_cells(
                         notebook_path,
                         cell_ids=cell_ids,
@@ -312,39 +343,53 @@ class Generator:
             else:
                 output_lines.append(line)
 
-        output_content = "\n".join(output_lines)
+        output_body = "\n".join(output_lines)
 
         # Determine output path
         output_path = Path(output_path)
 
-        # Skip writing if the body content hasn't changed
-        if output_path.exists():
-            existing = output_path.read_text(encoding="utf-8")
-            existing_body = _strip_frontmatter(existing)
-            if existing_body == output_content:
-                return existing
-
-        # Add frontmatter with source note and generation time
-        # Try to make the path relative to cwd for nicer output, but fall back to absolute path
+        # Build the frontmatter that should end up in the generated file.
+        # Start from the template's user-authored fields (content_id, title,
+        # is_preview, ...) and overlay codoc's own additions.
         try:
             if template_path.is_absolute():
                 relative_template = template_path.relative_to(Path.cwd())
             else:
                 relative_template = template_path
         except ValueError:
-            # Path is not relative to cwd (e.g., in temp directory), use as-is
             relative_template = template_path
 
+        user_frontmatter = {
+            k: v
+            for k, v in parsed.frontmatter.items()
+            if k not in _TEMPLATE_ONLY_FRONTMATTER_KEYS
+        }
+
+        note_value = (
+            f"This file is generated from {relative_template}. Don't change this file."
+        )
+        expected_frontmatter = dict(user_frontmatter)
+        expected_frontmatter["note"] = note_value
+
+        # Skip writing if both the body and the non-generated frontmatter match.
+        if output_path.exists():
+            existing = output_path.read_text(encoding="utf-8")
+            existing_body = _strip_frontmatter(existing)
+            existing_post = _frontmatter.loads(existing)
+            existing_fm = {
+                k: v
+                for k, v in existing_post.metadata.items()
+                if k not in _CODOC_ADDED_FRONTMATTER_KEYS
+            }
+            if existing_body == output_body and existing_fm == expected_frontmatter:
+                return existing
+
         from datetime import datetime
-        generated_at = datetime.now().isoformat()
 
-        frontmatter = f"""---
-note: This file is generated from {relative_template}. Don't change this file.
-generated_at: {generated_at}
----
+        final_frontmatter = dict(expected_frontmatter)
+        final_frontmatter["generated_at"] = datetime.now().isoformat()
 
-"""
-        output_content = frontmatter + output_content
+        output_content = _render_frontmatter(final_frontmatter) + output_body
 
         # Write to output file
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -366,6 +411,7 @@ def generate_template(
     output_path: Path | None = None,
     timeout: int = 30,
     kernel_name: str = "python3",
+    execute_override: bool | None = None,
 ) -> str:
     """
     Convenience function to generate a single template.
@@ -375,11 +421,16 @@ def generate_template(
         output_path: Optional output path
         timeout: Timeout for notebook execution
         kernel_name: Jupyter kernel to use
+        execute_override: Override frontmatter execute=true/false for this run
 
     Returns:
         The generated markdown content
     """
-    generator = Generator(timeout=timeout, kernel_name=kernel_name)
+    generator = Generator(
+        timeout=timeout,
+        kernel_name=kernel_name,
+        execute_override=execute_override,
+    )
     return generator.generate(template_path, output_path)
 
 
@@ -387,6 +438,7 @@ def generate_directory(
     directory: Path,
     timeout: int = 30,
     kernel_name: str = "python3",
+    execute_override: bool | None = None,
 ) -> list[Path]:
     """
     Generate all template files in a directory.
@@ -395,13 +447,18 @@ def generate_directory(
         directory: Root directory to search for templates
         timeout: Timeout for notebook execution
         kernel_name: Jupyter kernel to use
+        execute_override: Override frontmatter execute=true/false for this run
 
     Returns:
         List of generated file paths
     """
     from codoc.utils import find_template_files
 
-    generator = Generator(timeout=timeout, kernel_name=kernel_name)
+    generator = Generator(
+        timeout=timeout,
+        kernel_name=kernel_name,
+        execute_override=execute_override,
+    )
 
     template_files = find_template_files(directory)
     generated_paths = []

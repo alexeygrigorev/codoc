@@ -2,9 +2,11 @@
 
 from pathlib import Path
 import tempfile
+from unittest.mock import patch
 
 import pytest
 
+from codoc.nobook import execute_nobook
 from codoc.generator import Generator, generate_template, generate_directory, _strip_frontmatter
 from codoc.errors import BlockNotFoundError, EmptyOutputError, InvalidDirectiveError
 
@@ -21,13 +23,15 @@ class TestGenerator:
 
         assert gen.timeout == 30
         assert gen.kernel_name == "python3"
+        assert gen.execute_override is None
 
     def test_initialization_with_params(self):
         """It initializes with custom parameters."""
-        gen = Generator(timeout=60, kernel_name="test-kernel")
+        gen = Generator(timeout=60, kernel_name="test-kernel", execute_override=True)
 
         assert gen.timeout == 60
         assert gen.kernel_name == "test-kernel"
+        assert gen.execute_override is True
 
     def test_derive_output_path(self):
         """It derives output path from template path."""
@@ -89,6 +93,114 @@ class TestGenerator:
         assert "T" in result.split("generated_at:")[1].split("\n")[0]
         # Template's frontmatter should not be in output
         assert "notebooks:" not in result
+
+    def test_generate_merges_user_frontmatter(self, tmp_path):
+        """It merges user-authored frontmatter from the template into the output."""
+        import shutil
+
+        fixtures_tmp = tmp_path / "fixtures"
+        shutil.copytree(FIXTURES_DIR, fixtures_tmp)
+
+        template_content = """---
+notebooks:
+  - id: nb
+    path: fixtures/notebooks/sample.ipynb
+    execute: false
+content_id: 11111111-2222-3333-4444-555555555555
+title: Hello Lesson
+is_preview: true
+---
+
+# Hello
+
+@@code nb:print-hello
+"""
+        template_path = tmp_path / "hello.template.md"
+        template_path.write_text(template_content)
+
+        gen = Generator()
+        output_path = tmp_path / "hello.md"
+        result = gen.generate(template_path, output_path)
+
+        # User frontmatter must appear in the output
+        assert "content_id: 11111111-2222-3333-4444-555555555555" in result
+        assert "title: Hello Lesson" in result
+        assert "is_preview: true" in result
+        # Codoc-managed fields are still present
+        assert "note: This file is generated from" in result
+        assert "generated_at:" in result
+        # Template-only fields are stripped
+        assert "notebooks:" not in result
+
+    def test_skips_write_when_only_generated_at_differs(self, tmp_path):
+        """It does not rewrite when only generated_at would change."""
+        import shutil
+        import time
+
+        fixtures_tmp = tmp_path / "fixtures"
+        shutil.copytree(FIXTURES_DIR, fixtures_tmp)
+
+        template_content = """---
+notebooks:
+  - id: nb
+    path: fixtures/notebooks/sample.ipynb
+    execute: false
+content_id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+title: Stable
+---
+
+# Stable
+
+@@code nb:print-hello
+"""
+        template_path = tmp_path / "stable.template.md"
+        template_path.write_text(template_content)
+
+        gen = Generator()
+        output_path = tmp_path / "stable.md"
+
+        gen.generate(template_path, output_path)
+        first_mtime = output_path.stat().st_mtime
+
+        time.sleep(0.1)
+        gen.generate(template_path, output_path)
+        second_mtime = output_path.stat().st_mtime
+
+        assert first_mtime == second_mtime
+
+    def test_rewrites_when_user_frontmatter_changes(self, tmp_path):
+        """It rewrites the output when template frontmatter changes even if body is the same."""
+        import shutil
+
+        fixtures_tmp = tmp_path / "fixtures"
+        shutil.copytree(FIXTURES_DIR, fixtures_tmp)
+
+        template_v1 = """---
+notebooks:
+  - id: nb
+    path: fixtures/notebooks/sample.ipynb
+    execute: false
+content_id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+title: Original Title
+---
+
+# Hello
+
+@@code nb:print-hello
+"""
+        template_v2 = template_v1.replace("Original Title", "New Title")
+
+        template_path = tmp_path / "change.template.md"
+        output_path = tmp_path / "change.md"
+        gen = Generator()
+
+        template_path.write_text(template_v1)
+        gen.generate(template_path, output_path)
+        assert "title: Original Title" in output_path.read_text()
+
+        template_path.write_text(template_v2)
+        gen.generate(template_path, output_path)
+        assert "title: New Title" in output_path.read_text()
 
     def test_generate_creates_output_file(self):
         """It creates the output file."""
@@ -238,7 +350,8 @@ notebooks:
         # The path should contain the template filename (either relative or absolute)
         assert "test.template.md" in result
         # Verify YAML format
-        assert result.startswith("---\nnote: This file is generated from")
+        assert result.startswith("---\n")
+        assert "note: This file is generated from" in result
 
 
 class TestGenerateTemplate:
@@ -258,6 +371,27 @@ class TestGenerateTemplate:
 
         assert result is not None
         assert "```python" in result
+
+    @patch("codoc.generator.Generator")
+    def test_convenience_function_passes_execute_override(self, mock_generator_cls):
+        """It passes execute_override through to Generator."""
+        mock_generator = mock_generator_cls.return_value
+        mock_generator.generate.return_value = "# Generated content"
+
+        template_path = FIXTURES_DIR / "simple.template.md"
+        output_path = FIXTURES_DIR / "output.md"
+
+        generate_template(
+            template_path=template_path,
+            output_path=output_path,
+            execute_override=True,
+        )
+
+        mock_generator_cls.assert_called_once_with(
+            timeout=30,
+            kernel_name="python3",
+            execute_override=True,
+        )
 
 
 class TestGenerateDirectory:
@@ -303,6 +437,43 @@ class TestGenerateDirectory:
         with tempfile.TemporaryDirectory() as tmpdir:
             results = generate_directory(Path(tmpdir))
             assert results == []
+
+    @patch("codoc.generator.Generator")
+    @patch("codoc.utils.find_template_files")
+    def test_passes_execute_override(self, mock_find_template_files, mock_generator_cls):
+        """It passes execute_override through to Generator."""
+        mock_find_template_files.return_value = []
+
+        generate_directory(FIXTURES_DIR, execute_override=False)
+
+        mock_generator_cls.assert_called_once_with(
+            timeout=30,
+            kernel_name="python3",
+            execute_override=False,
+        )
+
+
+class TestNobookExecution:
+    """Tests for nobook execution behavior."""
+
+    def test_execute_nobook_can_import_sibling_module(self, tmp_path):
+        """It executes blocks with the script directory available on sys.path."""
+        helper_path = tmp_path / "helper.py"
+        helper_path.write_text('value = 42\n', encoding="utf-8")
+
+        nobook_path = tmp_path / "lesson.py"
+        nobook_path.write_text(
+            '# @block=code-1\n'
+            'from helper import value\n'
+            'print(value)\n',
+            encoding="utf-8",
+        )
+
+        notebook = execute_nobook(nobook_path)
+        outputs = notebook["cells"][0]["outputs"]
+
+        assert outputs[0]["output_type"] == "stream"
+        assert outputs[0]["text"] == "42\n"
 
 
 class TestCodeExtraction:
