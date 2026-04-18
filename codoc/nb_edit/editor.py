@@ -309,7 +309,17 @@ def get_cell_output(cell: NotebookDict) -> CellOutput:
             traceback = "\n".join(output.get("traceback", []))
             output_parts.append(f"Error: {traceback}")
 
-    text = "\n".join(output_parts).strip()
+    # Trim empty/whitespace-only lines from the top and bottom of the joined
+    # output, but preserve leading whitespace on the first real line — that
+    # whitespace is meaningful when the code prints indented text.
+    lines = "\n".join(output_parts).split("\n")
+    start = 0
+    end = len(lines)
+    while start < end and lines[start].strip() == "":
+        start += 1
+    while end > start and lines[end - 1].strip() == "":
+        end -= 1
+    text = "\n".join(lines[start:end])
     return CellOutput(text=text, has_output=bool(text))
 
 
