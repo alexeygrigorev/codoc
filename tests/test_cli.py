@@ -1,12 +1,12 @@
 """Tests for the CLI interface."""
 
+import argparse
 from pathlib import Path
 from unittest.mock import Mock, patch
-import sys
 
 import pytest
 
-from codoc.cli import run
+from codoc.cli import _parse_execute_override, run
 
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -84,6 +84,50 @@ class TestCliRun:
 
         call_kwargs = mock_gen.call_args[1]
         assert call_kwargs["kernel_name"] == "test-kernel"
+
+    @patch("codoc.cli.generate_template")
+    def test_passes_execute_override_for_single_file(self, mock_gen):
+        """It passes the execute override parameter."""
+        mock_gen.return_value = "# Generated content"
+
+        test_args = [
+            "codoc",
+            str(FIXTURES_DIR / "simple.template.md"),
+            "--execute",
+            "true",
+        ]
+
+        with patch("sys.argv", test_args):
+            with patch("sys.stdout"):
+                try:
+                    run()
+                except SystemExit:
+                    pass
+
+        call_kwargs = mock_gen.call_args[1]
+        assert call_kwargs["execute_override"] is True
+
+    @patch("codoc.cli.generate_directory")
+    def test_passes_execute_override_for_directory(self, mock_gen):
+        """It passes the execute override parameter for directory generation."""
+        mock_gen.return_value = []
+
+        test_args = [
+            "codoc",
+            str(FIXTURES_DIR),
+            "--execute",
+            "false",
+        ]
+
+        with patch("sys.argv", test_args):
+            with patch("sys.stdout"):
+                try:
+                    run()
+                except SystemExit:
+                    pass
+
+        call_kwargs = mock_gen.call_args[1]
+        assert call_kwargs["execute_override"] is False
 
     @patch("codoc.cli.generate_template")
     def test_passes_output_path(self, mock_gen):
@@ -189,7 +233,7 @@ class TestCliRun:
         test_args = ["codoc", str(FIXTURES_DIR / "simple.template.md")]
 
         with patch("sys.argv", test_args):
-            with patch("sys.stderr") as mock_stderr:
+            with patch("sys.stderr"):
                 try:
                     run()
                 except SystemExit as e:
@@ -219,15 +263,13 @@ class TestCliArgumentParsing:
 
     def test_default_arguments(self):
         """It sets default values for optional arguments."""
-        from argparse import Namespace
-        import argparse
-
         parser = argparse.ArgumentParser()
         parser.add_argument("path", type=Path)
         parser.add_argument("--timeout", type=int, default=30)
         parser.add_argument("--kernel", type=str, default="python3")
         parser.add_argument("-o", "--output", type=Path, default=None)
         parser.add_argument("-v", "--verbose", action="store_true")
+        parser.add_argument("--execute", type=_parse_execute_override, default=None)
 
         args = parser.parse_args(["test.md"])
 
@@ -235,17 +277,17 @@ class TestCliArgumentParsing:
         assert args.kernel == "python3"
         assert args.output is None
         assert args.verbose is False
+        assert args.execute is None
 
     def test_custom_arguments(self):
         """It parses custom argument values."""
-        import argparse
-
         parser = argparse.ArgumentParser()
         parser.add_argument("path", type=Path)
         parser.add_argument("--timeout", type=int, default=30)
         parser.add_argument("--kernel", type=str, default="python3")
         parser.add_argument("-o", "--output", type=Path, default=None)
         parser.add_argument("-v", "--verbose", action="store_true")
+        parser.add_argument("--execute", type=_parse_execute_override, default=None)
 
         args = parser.parse_args([
             "test.md",
@@ -253,9 +295,22 @@ class TestCliArgumentParsing:
             "--kernel", "test-kernel",
             "-o", "output.md",
             "-v",
+            "--execute", "true",
         ])
 
         assert args.timeout == 60
         assert args.kernel == "test-kernel"
         assert args.output == Path("output.md")
-        assert args.verbose is True
+        assert args.execute is True
+
+    def test_parse_execute_override_accepts_true_false(self):
+        """It parses true/false string values."""
+        assert _parse_execute_override("true") is True
+        assert _parse_execute_override("TRUE") is True
+        assert _parse_execute_override("false") is False
+        assert _parse_execute_override("FALSE") is False
+
+    def test_parse_execute_override_rejects_other_values(self):
+        """It rejects invalid values."""
+        with pytest.raises(argparse.ArgumentTypeError):
+            _parse_execute_override("yes")

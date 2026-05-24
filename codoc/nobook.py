@@ -2,6 +2,8 @@
 
 import contextlib
 import io
+import os
+import sys
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,7 +43,7 @@ def execute_nobook(path: Path, block_ids: list[str] | None = None) -> NotebookDi
     """Execute a nobook `.py` file and return a notebook-like structure."""
     text = path.read_text(encoding="utf-8")
     blocks = parse_nobook(text, str(path))
-    block_outputs = _execute_blocks(blocks, block_ids)
+    block_outputs = _execute_blocks(blocks, block_ids, path)
     return _build_notebook_dict(blocks, block_outputs)
 
 
@@ -148,44 +150,61 @@ def _parse_out_text(text: str) -> dict[str, list[dict[str, Any]]]:
 
 
 def _execute_blocks(
-    blocks: list[NobookBlock], block_ids: list[str] | None
+    blocks: list[NobookBlock], block_ids: list[str] | None, path: Path
 ) -> dict[str, list[dict[str, Any]]]:
     selected = _select_blocks(blocks, block_ids)
-    shared_globals: dict[str, Any] = {"__name__": "__codoc_nobook__"}
+    shared_globals: dict[str, Any] = {
+        "__name__": "__codoc_nobook__",
+        "__file__": str(path),
+    }
     results: dict[str, list[dict[str, Any]]] = {}
+    script_dir = str(path.parent.resolve())
+    original_cwd = Path.cwd()
 
-    for block in selected:
-        stdout_buf = io.StringIO()
-        error = None
+    try:
+        os.chdir(path.parent)
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+            added_to_syspath = True
+        else:
+            added_to_syspath = False
 
-        try:
-            with contextlib.redirect_stdout(stdout_buf):
-                exec(compile("\n".join(block.lines), f"<block:{block.name}>", "exec"), shared_globals)
-        except Exception:
-            error = traceback.format_exc().rstrip("\n")
+        for block in selected:
+            stdout_buf = io.StringIO()
+            error = None
 
-        block_outputs: list[dict[str, Any]] = []
-        stdout = stdout_buf.getvalue()
-        if stdout:
-            block_outputs.append(
-                {
-                    "output_type": "stream",
-                    "name": "stdout",
-                    "text": stdout,
-                }
-            )
-        if error:
-            block_outputs.append(
-                {
-                    "output_type": "error",
-                    "traceback": error.splitlines(),
-                }
-            )
-        if block_outputs:
-            results[block.name] = block_outputs
+            try:
+                with contextlib.redirect_stdout(stdout_buf):
+                    exec(compile("\n".join(block.lines), f"<block:{block.name}>", "exec"), shared_globals)
+            except Exception:
+                error = traceback.format_exc().rstrip("\n")
 
-        if error:
-            break
+            block_outputs: list[dict[str, Any]] = []
+            stdout = stdout_buf.getvalue()
+            if stdout:
+                block_outputs.append(
+                    {
+                        "output_type": "stream",
+                        "name": "stdout",
+                        "text": stdout,
+                    }
+                )
+            if error:
+                block_outputs.append(
+                    {
+                        "output_type": "error",
+                        "traceback": error.splitlines(),
+                    }
+                )
+            if block_outputs:
+                results[block.name] = block_outputs
+
+            if error:
+                break
+    finally:
+        os.chdir(original_cwd)
+        if 'added_to_syspath' in locals() and added_to_syspath:
+            sys.path.remove(script_dir)
 
     return results
 

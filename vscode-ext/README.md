@@ -1,17 +1,60 @@
-# Codegen Template Editor — VS Code Extension
+# Codoc Template Editor — VS Code Extension
 
 Inline code previews for `@@code` directives in `.template.md` files.
 
 Opens templates in a Monaco-based custom editor that shows resolved cell content
 below each directive, with autocomplete and generate-on-save.
 
+## Install in VS Code
+
+Build and package the extension:
+
+```bash
+cd vscode-ext
+npm install
+npm run compile
+npm run package
+```
+
+Install the generated VSIX from the command line:
+
+```bash
+code --install-extension codoc-vscode-*.vsix
+```
+
+Use a local `.vsix` file path here. If the package is hosted at an `https://` URL, download it first and then install the downloaded file.
+
+Or in VS Code:
+
+1. Open the Extensions view
+2. Click `...` in the top-right of the Extensions panel
+3. Choose `Install from VSIX...`
+4. Select `vscode-ext/codoc-vscode-<version>.vsix`
+
+After installation, open any `.template.md` file to use the custom editor.
+
+If you're using VS Code Remote - SSH, connect to the SSH host first and then install the VSIX from that remote window:
+
+1. Run `Remote-SSH: Connect to Host...`
+2. Open the remote folder or workspace
+3. Open the Extensions view in that remote window
+4. Click `...` and choose `Install from VSIX...`
+5. Select the generated `.vsix` and reload when prompted
+
+That installs the extension on the SSH host for that window. Installing the VSIX only in your local VS Code window does not install it remotely.
+
+If the VSIX is hosted on a web URL, download it first and then install that file from the remote window. The documented Remote-SSH path is file-based, not URL-based.
+
+Because the extension shells out to `codoc`, make sure `codoc` or your configured `Codoc > Python Command` is available on the SSH host. If needed, set it in Remote Settings.
+
+If `codoc` is not available on your `PATH`, set `Codoc > Python Command` to the command you use to run it, for example `uv run codoc`.
 
 ## Development
 
 Install dependencies and build:
 
 ```bash
-cd codegen-vs
+cd vscode-ext
 npm install
 npm run compile
 ```
@@ -52,10 +95,10 @@ npm run lint
 
 ## Running the Extension
 
-The workspace root is `ai-engineering-buildcamp` with `codegen-vs` as a subfolder.
+From the repository root:
 
 1. Open the Run & Debug panel (Ctrl+Shift+D)
-2. Select "Run Codegen Extension" from the dropdown
+2. Select "Run Codoc Extension" from the dropdown
 3. Press F5
 
 This launches an Extension Development Host with the extension loaded.
@@ -103,7 +146,7 @@ Extension host logs (file reading, navigation) appear in the Debug Console of th
 After editing source files:
 
 ```bash
-cd codegen-vs
+cd vscode-ext
 npm run compile:dev
 ```
 

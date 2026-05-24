@@ -8,6 +8,16 @@ from codoc.errors import CodocError
 from codoc.generator import generate_directory, generate_template
 
 
+def _parse_execute_override(value: str) -> bool:
+    """Parse --execute=true/false into a boolean."""
+    normalized = value.strip().lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    raise argparse.ArgumentTypeError("--execute must be 'true' or 'false'")
+
+
 def run():
     """Run the codoc CLI."""
     parser = argparse.ArgumentParser(
@@ -52,6 +62,13 @@ def run():
         help="Enable verbose output",
     )
 
+    parser.add_argument(
+        "--execute",
+        type=_parse_execute_override,
+        default=None,
+        help="Override frontmatter execution for this run: true or false",
+    )
+
     args = parser.parse_args()
 
     try:
@@ -65,11 +82,12 @@ def run():
             if args.verbose:
                 print(f"Generating: {args.path} -> {args.output or 'auto'}")
 
-            result = generate_template(
+            generate_template(
                 template_path=args.path,
                 output_path=args.output,
                 timeout=args.timeout,
                 kernel_name=args.kernel,
+                execute_override=args.execute,
             )
 
             if args.verbose:
@@ -87,6 +105,7 @@ def run():
                 directory=args.path,
                 timeout=args.timeout,
                 kernel_name=args.kernel,
+                execute_override=args.execute,
             )
 
             if args.verbose:

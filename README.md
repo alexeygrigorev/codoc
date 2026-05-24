@@ -32,14 +32,46 @@ It provides:
 - navigation from template directives to source cells and blocks
 - inline editing for notebook, nobook, and script-backed sources
 
-Build or package it from the repo:
+### Install in VS Code
+
+Package and install the extension from this repo:
 
 ```bash
 cd vscode-ext
 npm install
 npm run compile
 npm run package
+code --install-extension codoc-vscode-*.vsix
 ```
+
+Use a local `.vsix` file path for installation. If you host the VSIX at an `https://` URL, download it first and then install the downloaded file.
+
+You can also install the generated `.vsix` from the VS Code UI:
+
+1. Open the Extensions view
+2. Click `...` in the top-right of the Extensions panel
+3. Choose `Install from VSIX...`
+4. Select the generated file in `vscode-ext/`
+
+After installation, open any `.template.md` file to load the custom editor.
+
+If you're using VS Code Remote - SSH, install the `.vsix` from a VS Code window that is already connected to the SSH host:
+
+1. Connect to the host with `Remote-SSH: Connect to Host...`
+2. Open the remote workspace or folder
+3. In that remote window, open the Extensions view
+4. Click `...` and choose `Install from VSIX...`
+5. Select the generated `.vsix` and reload when prompted
+
+VS Code installs the extension for that SSH host. Installing the VSIX only in your local VS Code window is not enough for Remote-SSH.
+
+If the VSIX is hosted on a web URL, download it locally first, then run `Install from VSIX...` from the remote window. The documented Remote-SSH flow installs from a VSIX file, not directly from a web link.
+
+Because the extension runs `codoc` in the workspace, make sure `codoc` (or the command in `Codoc > Python Command`) is available on the SSH host. Set this in Remote Settings if needed.
+
+If `codoc` is not available on your `PATH`, set `Codoc > Python Command` in VS Code settings to the command you use to run it, for example `uv run codoc`.
+
+### Develop or debug the extension
 
 Run it in debug mode from VS Code:
 
